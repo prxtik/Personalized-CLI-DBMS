@@ -1,175 +1,262 @@
-import java.io.*;
-import java.sql.SQLOutput;
-import java.util.*;
-import java.security.*;
-import java.math.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Scanner;
 
-/**
- * This class performs various user operations like signup, login, etc.
- */
-public class UserManagement extends User {
-    /**
-     * The method is used to log in by a user.
-     *
-     * @return the method returns the user object.
-     * @throws Exception
+public class UserManagement {
+    public static Boolean isNewFile = false;
+    public static Boolean isUserLoggedIn = false;
+    public static Map<String, String> logMap = new LinkedHashMap<String, String>();
+    public static Map<String, Map<String, String>> hm = new LinkedHashMap<String, Map<String, String>>();
+    public static UserLog logObj = new UserLog();
+
+    /*
+     * This method gets the user input from a list of options
      */
-    public User login() throws Exception {
-        File obj = new File("users.txt");
-        Scanner sc = new Scanner(System.in);
-        User u = new User();
-        String s;
-        do {
-            System.out.println("Enter Username: ");
-            u.setUsername(sc.nextLine());
-            if (isPresent(u.getUsername())) {
-                do {
-                    System.out.println("Enter Password: ");
-                    String passwd = sc.nextLine();
-                    passwd = hashing(passwd);
-                    u.setPassword(passwd);
-                    s = isPresent(u.getUsername(), u.getPassword());
-                    if (s == null) {
-                        System.out.println("Invalid Password. Enter Valid Password.");
-                    }
-                } while (s == null);
-                System.out.println("Security Ques: " + s.split("@@@")[1].split(":::")[0]);
-                String ans;
-                do {
-                    System.out.println("Enter Answer: ");
-                    u.setSecurityans(sc.nextLine());
-                    ans = s.split(":::")[1].split("&&&")[0];
-                    if (u.getSecurityans().equals(ans)) {
-                        System.out.println("Welcome, " + u.getUsername() + ". You are successfully logged in.");
-
-                        // Logging users login activity in the log file
-                        Logger log = new Logger();
-                        log.logActivity(u.getUsername(), "Login", "");
-                        break;
-                    }
-                    System.out.println("Invalid Answer. Enter Correct Answer.");
-                } while (!u.getSecurityans().equals(ans));
-                break;
-            }
-            System.out.println("Invalid Username. Enter Valid Username.");
-        } while (!isPresent(u.getUsername()));
-        return u;
-    }
-
-    /**
-     * The method is used to register a user during signup.
-     *
-     * @return the method returns a file that stores all the user data.
-     * @throws Exception the method throws an exception if the user file creation was not successful.
-     */
-    public File register() throws Exception {
-//      first create a new file for the first user and inputting user data
-        File objc = createFile();
-        objc.createNewFile();
-        User u = new User();
-        Scanner myReader = new Scanner(System.in);
-        do {
-            System.out.println("Enter username:");
-            u.setUsername(myReader.nextLine());
-            if (isPresent(u.getUsername())) {
-                System.out.println("User already exists. Kindly use a different username.");
-            }
-        } while (isPresent(u.getUsername()));
-        System.out.println("Enter password:");
-        String passwd = myReader.nextLine();
-        passwd = hashing(passwd);
-        u.setPassword(passwd);
-        System.out.println("Enter security question:");
-        u.setSecurityque(myReader.nextLine());
-        System.out.println("Enter answer:");
-        u.setSecurityans(myReader.nextLine());
-
-        FileWriter myWriter = new FileWriter("users.txt", true);
-        myWriter.append("###" + u.username + "$$$" +
-                u.password + "@@@" +
-                u.securityque + ":::" +
-                u.securityans + "&&&" +
-                '\n');
-        myWriter.close();
-
-        System.out.println("User Registered");
-        return objc;
-    }
-
-    /**
-     * The method just creates a user file.
-     *
-     * @return the method returns a users file.
-     */
-    public File createFile() {
-        Logger logFile = new Logger();
-        boolean result = logFile.createFile("users");
-        if (result) {
-            return new File("users.txt");
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * The method is used to check if the usrename is already taken or not
-     *
-     * @param usrname the method takes username as its input.
-     * @return the method returns true if the user is already present.
-     * @throws FileNotFoundException the method throws this exception if the user file was not located.
-     */
-    public Boolean isPresent(String usrname) throws FileNotFoundException {
-        File obj = new File("users.txt");
-        Scanner sc = new Scanner(obj);
-        while (sc.hasNextLine()) {
-            String p = sc.nextLine();
-            if (p.contains("###" + usrname + "$$$")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * The method is used to check whether the user is a valid user or not during login
-     *
-     * @param usrname the method takes username as one of its parameter.
-     * @param pswd    the method takes password as another one of its parameters.
-     * @return the method returns the row where the username is found.
-     */
-    public String isPresent(String usrname, String pswd) {
+    public static void getUserInput() {
         try {
-            File obj = new File("users.txt");
-            Scanner sc = new Scanner(obj);
-            String p = "";
-            while (sc.hasNextLine()) {
-                p = sc.nextLine();
-                if (p.contains("###" + usrname + "$$$" + pswd + "@@@")) {
-                    return p;
+            File fileObj = new File("users.env");
+            if (fileObj.createNewFile()) {
+                isNewFile = true;
+            }
+            System.out.println("Choose one option from the following:");
+            System.out.println("1. Register");
+            if (fileObj.length() != 0) {
+                System.out.println("2. Login");
+            }
+            Scanner scanOption = new Scanner(System.in);
+            String option = scanOption.nextLine();
+
+            readData();
+
+            if (option.equals("1")) {
+                registerUser();
+            } else if (option.equals("2")) {
+                loginUser();
+            } else {
+                System.out.println("Please enter valid input");
+                getUserInput();
+            }
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
+
+    }
+
+    /*
+     * This method will read the registered user data from the file
+     */
+    public static void readData() {
+        try {
+            File myObj = new File("./users.env");
+            Scanner myReader = new Scanner(myObj);
+
+            while (myReader.hasNextLine()) {
+
+                Map<String, String> tempMap = new LinkedHashMap<String, String>();
+                String innerLine = EncryptionDecryptionAES.encryptDecrypt(myReader.nextLine(), "decrypt");
+                String[] keyValueOuter = innerLine.split("--");
+                for (int i = 0; i < keyValueOuter.length; i++) {
+                    String[] keyValueInner = keyValueOuter[i].split("=");
+                    tempMap.put(keyValueInner[0], keyValueInner[1]);
+                }
+                hm.put(tempMap.get("userName"), tempMap);
+            }
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
+    }
+
+    /*
+     * This method will get the username, password and answer to the
+     * security question and will verify it against the stored data and if matched,
+     * will give access to the user to the present database
+     */
+    public static void loginUser() {
+        try {
+            if (hm == null || hm.isEmpty()) {
+                readData();
+            }
+            System.out.println("------LOGIN SCREEN------");
+            System.out.println("Enter username:");
+            Scanner scanUsrnm = new Scanner(System.in);
+            String usrnm = scanUsrnm.nextLine();
+
+            Map<String, String> userDetails = new LinkedHashMap<String, String>();
+            userDetails = hm.get(usrnm);
+            if (userDetails == null || userDetails.isEmpty()) {
+                System.out.println("User does not exist, please enter correct username");
+                loginUser();
+            } else {
+                System.out.println("Enter password:");
+                Scanner scanPswrd = new Scanner(System.in);
+                String pswrd = md5Encrypt(scanPswrd.nextLine());
+
+                System.out.println(userDetails.get("seqQuestion"));
+                Scanner scanAns = new Scanner(System.in);
+                String answer = scanAns.nextLine();
+
+                if (pswrd.equals(userDetails.get("password")) && answer.equals(userDetails.get("seqAnswer"))) {
+                    System.out.println("Login successful!");
+                    isUserLoggedIn = true;
+                    logMap.put("operation", "login");
+                    logMap.put("userName", usrnm);
+                    logMap.put("loginTimeStamp", getCurrentDateTime());
+                    logUserActivity(logMap, false);
+                    System.out.println("------INPUT QUERY SCREEN------");
+                    DetermineQueryType determineQuery = new DetermineQueryType();
+                    determineQuery.getQuery();
+                } else {
+                    System.out.println("Sorry, login unsuccessful. Please try again");
+                    loginUser();
                 }
             }
-            return null;
         } catch (Exception e) {
-            System.out.println("The file does not exist.");
-            return null;
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
+
+    }
+
+    /*
+     * This method will register the user for the first time and store
+     * the user information in the database
+     */
+    public static void registerUser() {
+        try {
+
+            System.out.println("------REGISTER SCREEN------");
+
+            System.out.println("Please enter username:");
+            Scanner scanUserName = new Scanner(System.in);
+            String userName = scanUserName.nextLine();
+
+            Map<String, String> existingUserDetails = new LinkedHashMap<String, String>();
+            existingUserDetails = hm.get(userName);
+
+            if (existingUserDetails == null || existingUserDetails.isEmpty()) {
+                System.out.println("Please enter password:");
+                Scanner scanPassword = new Scanner(System.in);
+                String password = scanPassword.nextLine();
+
+                System.out.println("Please enter your security question:");
+                Scanner scanSeqQuestion = new Scanner(System.in);
+                String seqQuestion = scanSeqQuestion.nextLine();
+
+                System.out.println("Please enter your security answer:");
+                Scanner scanSeqAnswer = new Scanner(System.in);
+                String seqAnswer = scanSeqAnswer.nextLine();
+
+                String hashedPassword = md5Encrypt(password);
+                if (hashedPassword != null && hashedPassword != "") {
+                    FileWriter fileWriter = new FileWriter("users.env", true);
+
+                    String userData = "userName=" + userName + "--password=" + hashedPassword + "--seqQuestion="
+                            + seqQuestion + "--seqAnswer=" + seqAnswer;
+                    fileWriter.write(EncryptionDecryptionAES.encryptDecrypt(userData, "encrypt"));
+                    fileWriter.write("\n");
+                    fileWriter.close();
+
+                    System.out.println("You are now added as a registered User and can access the database!");
+                    loginUser();
+                }
+
+            } else {
+                System.out.println("This username is already taken, please choose another one");
+                registerUser();
+            }
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
         }
 
     }
 
     /**
-     * The method is used to hash the user's password
-     *
-     * @param a the method takes the user's original password as input parameter
-     * @return the method returns the hashed password.
-     * @throws Exception the method throws an Exception.
+     * This method logs the user activity
+     * 
+     * @param logMap          This is a map of type of detail and actual details to
+     *                        be stored in the user logs
+     * @param isLastOperation This denotes if this is the last operation of the
+     *                        user, for example: logout
      */
-    public String hashing(String a) throws Exception {
-        //This code is adapted from Infosec Scout
-        //https://infosecscout.com/decrypt-md5-in-java/
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        md.update(a.getBytes(), 0, a.length());
-        return new BigInteger(1, md.digest()).toString(16);
+    public static void logUserActivity(Map<String, String> logMap, Boolean isLastOperation) {
+        try {
+            logObj.writeLogs(logMap, false);
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
     }
 
+    /*
+     * This methods provides the option to enter another query or exit the session
+     */
+    public static void exitSession() {
+        try {
+            System.out.println("Choose one option from the following:");
+            System.out.println("1. Enter another query");
+            System.out.println("2. Exit");
+            Scanner scanExit = new Scanner(System.in);
+            String exitOption = scanExit.nextLine();
+            if (exitOption.equals("2") && isUserLoggedIn) {
+                logMap.clear();
+                logMap.put("operation", "logout");
+                logMap.put("logoutTimeStamp", getCurrentDateTime());
+                logObj.writeLogs(logMap, true);
+                logMap.clear();
+                getUserInput();
+            } else if (exitOption.equals("1")) {
+                DetermineQueryType determineQuery = new DetermineQueryType();
+                determineQuery.getQuery();
+            } else {
+                System.out.println("Please enter valid input");
+                exitSession();
+            }
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
+    }
 
+    /**
+     * This method gets the current date and time
+     * 
+     * @return String This returns teh current date and time in a string format
+     */
+    public static String getCurrentDateTime() {
+        String formattedDateTime = java.time.LocalDateTime.now().toString();
+        return formattedDateTime;
+    }
+
+    /**
+     * This method encrypts the password for security
+     * 
+     * @param password This is the password taken from the user as an input
+     * @return String This returns the hashed/encrypted password to be stored in
+     *         database or matched against user input
+     */
+    public static String md5Encrypt(String password) {
+        String hashedPassword = new String();
+        try {
+            /*
+             * Code adapted from the example in the article by InfoSe Scout
+             * Available: https://infosecscout.com/decrypt-md5-in-java/
+             */
+
+            MessageDigest m = MessageDigest.getInstance("MD5");
+            m.update(password.getBytes(), 0, password.length());
+            hashedPassword = new BigInteger(1, m.digest()).toString(16);
+
+        } catch (Exception e) {
+            System.out.println("Something went wrong!");
+            getUserInput();
+        }
+        return hashedPassword;
+    }
 }
